@@ -11,8 +11,14 @@
     <link rel="manifest" href="/manifest.json">
 
     <script src="/node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
+    <script src="/node_modules/axios/dist/axios.min.js"></script>
+    <script src="spotifyconfig.js"></script>
 
     <script type="module" src="/src/radio-recognition-frontend-app/radio-recognition-frontend-app.js"></script>
+    <script type="text/javascript">
+      var BACKEND_URL = "http://localhost:5000"
+      var APP_URL = "http://localhost:8081"
+    </script>
   </head>
   <style>
     body{
