@@ -1,11 +1,11 @@
 import { html, PolymerElement } from '@polymer/polymer/polymer-element.js';
 import { sharedStyles } from './sharedstyles.js';
-import { } from '@polymer/paper-button/paper-button.js';
-import { } from '@polymer/paper-styles/paper-styles.js';
-import { } from '@polymer/iron-flex-layout/iron-flex-layout-classes.js';
-import { } from '@polymer/polymer/lib/elements/dom-if.js';
-// import { } from '@polymer/app-route/app-location.html';
-import { } from '@polymer/app-route/app-route.js';
+import '@polymer/paper-button/paper-button.js';
+import '@polymer/paper-styles/paper-styles.js';
+import '@polymer/iron-flex-layout/iron-flex-layout-classes.js';
+import '@polymer/polymer/lib/elements/dom-if.js';
+import '@polymer/app-route/app-route.js';
+
 
 /**
  * @customElement
@@ -81,11 +81,10 @@ class RadioRecognitionFrontendApp extends PolymerElement {
           </div>
         </div>
         <span class="flex"></span>
-        <template is="dom-if" if="[[!spotifyAccesstokenDefined(spotifyAccessToken)]]">
-          <paper-button id="spotifyConnectButton" class="spotifyButton" on-tap="onSpotifyAuthTap">Connect with Spotify</paper-button>
-        </template>
-        [[this.currentSongURL]]
-        <template is="dom-if" if="[[spotifyAccesstokenDefined(spotifyAccessToken)]]">
+          <template is="dom-if" if="[[!authorizedSpotify]]">
+            <paper-button id="spotifyConnectButton" class="spotifyButton" on-tap="onSpotifyAuthTap">Connect with Spotify</paper-button>
+          </template>
+        <template is="dom-if" if="[[_and(authorizedSpotify, currentSongURL)]]">
           <paper-button id="openSongInSpotifyButton" class="spotifyButton" on-tap="openSongInSpotify">Open in Spotify</paper-button>
         </template>
         <paper-button id="updateStationbutton" on-tap="updateStation">Update station</paper-button>
@@ -106,10 +105,14 @@ class RadioRecognitionFrontendApp extends PolymerElement {
       routeData: {
       },
       spotifyAccessToken: {
+        observer: '_onSpotifyAccessTokenChanged'
+      },
+      currentSongURL: {
+        type: String,
         value: ''
       },
-      currentSongURL:{
-        type: String, 
+      authorizedSpotify: {
+        value: false,
       }
     };
   }
@@ -146,11 +149,20 @@ class RadioRecognitionFrontendApp extends PolymerElement {
 
   ready() {
     super.ready()
+    if (window.localStorage.getItem('spotifyAccessToken')) {
+      var token = JSON.parse(window.localStorage.getItem('spotifyAccessToken'))
+      //Check if token is still valid
+      if (new Date(token.expires_in).getTime() > new Date().getTime()) {
+        this.spotifyAccessToken = token;
+      }
+    }
+
     if (window.location.hash && this.parseURLparameters(window.location.hash)) {
       var hashWithoutHashSymbol = window.location.hash.substring(1)
       var params = this.parseURLparameters(hashWithoutHashSymbol)
       if (params.access_token) {
-        this.spotifyAccessToken = params.access_token;
+        this.spotifyAccessToken = { token: params.access_token, expires_in: new Date(new Date().getTime() + (1000 * params.expires_in)) };
+        console.log(this.spotifyAccessToken)
       } else if (params.error) {
         console.error("Error with spotify authentication", params.error)
       }
@@ -169,24 +181,40 @@ class RadioRecognitionFrontendApp extends PolymerElement {
       });
     return parsed;
   }
+
   spotifyAccesstokenDefined(spotifyAccessToken) {
-    return spotifyAccessToken && spotifyAccessToken !== ''
+    return spotifyAccessToken && spotifyAccessToken.token && spotifyAccessToken.token !== ''
   }
 
   _onCurrentStationChange() {
     if (this.spotifyAccesstokenDefined(this.spotifyAccessToken)) {
-      axios.get("https://api.spotify.com/v1/search?q=" + encodeURIComponent(this.currentstation.songs[0].name) + "&type=track", { headers: { Authorization: 'Bearer '+ this.spotifyAccessToken } })
-        .then((resp) =>this.set('currentSongURL', resp.data.tracks.items[0].external_urls.spotify))
+      axios.get("https://api.spotify.com/v1/search?q=" + encodeURIComponent(this.currentstation.songs[0].name) + "&type=track", { headers: { Authorization: 'Bearer ' + this.spotifyAccessToken } })
+        .then((resp) => this.set('currentSongURL', resp.data.tracks.items[0].external_urls.spotify))
         .catch((err) => console.log(err))
     }
   }
 
-  openSongInSpotify(){
-    if(this.currentSongURL){
-    window.open(this.currentSongURL, '_blank')
-    }else{
+  openSongInSpotify() {
+    if (this.currentSongURL) {
+      window.open(this.currentSongURL, '_blank')
+    } else {
       console.log('CurrentSongURL undefined')
     }
+  }
+
+  _onSpotifyAccessTokenChanged() {
+    if (this.spotifyAccessToken) {
+      window.localStorage.setItem('spotifyAccessToken', JSON.stringify(this.spotifyAccessToken))
+      this.authorizedSpotify = true;
+    }
+  }
+
+  notEmptyString(string) {
+    return string && string !== ''
+  }
+
+  _and(a, b) {
+    return a && b;
   }
 
 }
