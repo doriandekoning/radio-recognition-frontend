@@ -54,8 +54,8 @@ class RadioRecognitionFrontendApp extends PolymerElement {
         }
 
       </style>
-      <app-location route="{{route}}" use-hash-as-path></app-location>
-      <app-route route="{{route}}" pattern="/:pattern" data="{{routeData}}"></app-route>
+
+
       <div id="container" class="layout vertical">
         <img id="radio" src="../../img/icons/radio.svg" class="self-center" on-click="onRadioTap" recording$=[[recording]]></img>
         <div class="smalltext self-center">
@@ -67,17 +67,20 @@ class RadioRecognitionFrontendApp extends PolymerElement {
           </template>
         </div>
         <div id="information">
-          <div class="text">Detected station:</div>
-          <img style="width:70vw" src="https://www.radiofreak.nl/wp-content/uploads/2016/01/npo-3fm-plain-rgb-zonderoutl-1024x392.png"></img>
+          <div class="layout horizontal">
+            <span>Station:</span>
+            <span class="flex"></span>
+            <span>[[currentstation.stationname]] </span>
+          </div>
           <div class="layout horizontal">
             <span>Song:</span>
             <span class="flex"></span>
-            <span>[[currentstation.songs.0.name]] - [[currentstation.songs.0.artist]]</span>
+            <span>[[currentstation.song.name]] - [[currentstation.song.artist]]</span>
           </div>
           <div class="layout horizontal">
             <span>DJ:</span>
             <span class="flex"></span>
-            <span>[[currentstation.dj.name]]</span>
+            <span>[[currentstation.dj]]</span>
           </div>
         </div>
         <span class="flex"></span>
@@ -87,7 +90,6 @@ class RadioRecognitionFrontendApp extends PolymerElement {
         <template is="dom-if" if="[[_and(authorizedSpotify, currentSongURL)]]">
           <paper-button id="openSongInSpotifyButton" class="spotifyButton" on-tap="openSongInSpotify">Open in Spotify</paper-button>
         </template>
-        <paper-button id="updateStationbutton" on-tap="updateStation">Update station</paper-button>
       </div>
       
       
@@ -113,12 +115,19 @@ class RadioRecognitionFrontendApp extends PolymerElement {
       },
       authorizedSpotify: {
         value: false,
-      }
+      },
+      mediaStream: Object,
+      mediaRecorder: Object,
     };
   }
 
 
   onRadioTap() {
+    if(this.recording){
+      this._stopAudioRecorder()
+    }else{
+      this._initAudioRecorder()
+    }
     this.recording = !this.recording;
     this.updateStyles();
   }
@@ -131,29 +140,15 @@ class RadioRecognitionFrontendApp extends PolymerElement {
     }
   }
 
-  updateStation() {
-    this.currentstation = {
-      name: 'I/O FM',
-      songs: [
-        {
-          name: 'Colossus',
-          artist: 'IDLES'
-        }
-      ],
-      dj: {
-        name: 'Dorian'
-      }
-
-    }
-  }
-
   ready() {
     super.ready()
     if (window.localStorage.getItem('spotifyAccessToken')) {
       var token = JSON.parse(window.localStorage.getItem('spotifyAccessToken'))
       //Check if token is still valid
-      if (new Date(token.expires_in).getTime() > new Date().getTime()) {
+      if (new Date(token.expires_at).getTime() > new Date().getTime()) {
         this.spotifyAccessToken = token;
+      } else {
+        window.localStorage.removeItem('spotifyAccessToken')
       }
     }
 
@@ -161,13 +156,43 @@ class RadioRecognitionFrontendApp extends PolymerElement {
       var hashWithoutHashSymbol = window.location.hash.substring(1)
       var params = this.parseURLparameters(hashWithoutHashSymbol)
       if (params.access_token) {
-        this.spotifyAccessToken = { token: params.access_token, expires_in: new Date(new Date().getTime() + (1000 * params.expires_in)) };
-        console.log(this.spotifyAccessToken)
+        this.spotifyAccessToken = { token: params.access_token, expires_at: new Date(new Date().getTime() + (1000 * params.expires_in)) };
       } else if (params.error) {
         console.error("Error with spotify authentication", params.error)
       }
       window.location.hash = ''
     }
+  }
+
+  _initAudioRecorder() {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(stream => {
+        this.mediaStream = stream;
+        var options = {
+          audioBitsPerSecond: 128000,
+          videoBitsPerSecond: 2500000,
+          mimeType: 'audio/webm;codecs=opus'
+
+        }
+        this.mediaRecorder = new MediaRecorder(stream, options)
+        this.mediaRecorder.start(5000)
+        //Recorder calls data available every 5000ms
+        this.mediaRecorder.ondataavailable = (e) => {
+            var reader = new FileReader();
+            reader.readAsDataURL(e.data)
+            reader.onloadend = () => this._sendToBackend(reader.result)
+        }
+      })
+  }
+
+  _stopAudioRecorder(){
+    this.mediaStream.getTracks()[0].stop();
+  }
+
+  _sendToBackend(base64audio){
+    axios.post(BACKEND_URL + '/analysis', {audio: base64audio})
+    .then((resp) => this.set('currentstation', resp.data))
+    .catch((err) => console.log(err))
   }
 
   parseURLparameters(string) {
@@ -188,7 +213,7 @@ class RadioRecognitionFrontendApp extends PolymerElement {
 
   _onCurrentStationChange() {
     if (this.spotifyAccesstokenDefined(this.spotifyAccessToken)) {
-      axios.get("https://api.spotify.com/v1/search?q=" + encodeURIComponent(this.currentstation.songs[0].name) + "&type=track", { headers: { Authorization: 'Bearer ' + this.spotifyAccessToken } })
+      axios.get("https://api.spotify.com/v1/search?q=" + encodeURIComponent(this.currentstation.song.name) + "&type=track", { headers: { Authorization: 'Bearer ' + this.spotifyAccessToken.token } })
         .then((resp) => this.set('currentSongURL', resp.data.tracks.items[0].external_urls.spotify))
         .catch((err) => console.log(err))
     }
