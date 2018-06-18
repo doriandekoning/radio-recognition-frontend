@@ -170,7 +170,6 @@ class RadioRecognitionFrontendApp extends PolymerElement {
         this.mediaStream = stream;
         var options = {
           audioBitsPerSecond: 128000,
-          videoBitsPerSecond: 2500000,
           mimeType: 'audio/webm;codecs=opus'
 
         }
@@ -181,6 +180,9 @@ class RadioRecognitionFrontendApp extends PolymerElement {
             var reader = new FileReader();
             reader.readAsDataURL(e.data)
             reader.onloadend = () => this._sendToBackend(reader.result)
+            //Hacky way to record another segment (when not "reset" like this only the first webm blob contains metadata)
+            this._stopAudioRecorder()
+            this._initAudioRecorder()
         }
       })
   }
