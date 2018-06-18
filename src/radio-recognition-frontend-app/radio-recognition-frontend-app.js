@@ -174,7 +174,7 @@ class RadioRecognitionFrontendApp extends PolymerElement {
 
         }
         this.mediaRecorder = new MediaRecorder(stream, options)
-        this.mediaRecorder.start(5000)
+        this.mediaRecorder.start(10000)
         //Recorder calls data available every 5000ms
         this.mediaRecorder.ondataavailable = (e) => {
             var reader = new FileReader();
