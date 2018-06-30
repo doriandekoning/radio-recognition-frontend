@@ -1,34 +1,39 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
 
-    <title>radio-recognition-frontend</title>
-    <meta name="description" content="radio-recognition-frontend description">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
 
-    <!-- See https://goo.gl/OOhYW5 -->
-    <link rel="manifest" href="/manifest.json">
+  <title>radio-recognition-frontend</title>
+  <meta name="description" content="radio-recognition-frontend description">
 
-    <script src="/node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
-    <script src="/node_modules/axios/dist/axios.min.js"></script>
-    <script src="spotifyconfig.js"></script>
+  <!-- See https://goo.gl/OOhYW5 -->
+  <link rel="manifest" href="/manifest.json">
 
-    <script type="module" src="/src/radio-recognition-frontend-app/radio-recognition-frontend-app.js"></script>
-    <script type="text/javascript">
-      var BACKEND_URL = "https://backend.mmsr-fingerprint.nl:5000"
-      var APP_URL = "http://localhost:8081"
-    </script>
-  </head>
-  <style>
-    body{
-      background-color: #009E7E;
-      font-family: sans-serif;
-      color: lightgrey;
-    }
+  <script src="/node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
+  <script src="/node_modules/axios/dist/axios.min.js"></script>
+  <script src="js/spotifyconfig.js"></script>
+  <!-- <script src="/node_modules/audio-recorder-polyfill/wave-encoder.js"></script>
+  <script src="/node_modules/audio-recorder-polyfill/index.js"></script> -->
 
-  </style>
-  <body>
-    <radio-recognition-frontend-app></radio-recognition-frontend-app>
-  </body>
+
+  <script type="text/javascript">
+    var BACKEND_URL = "https://backend.mmsr-fingerprint.nl:5000"
+    var APP_URL = "http://localhost:8081"
+  </script>
+  <script type="module" src="/src/radio-recognition-frontend-app/radio-recognition-frontend-app.js"></script>
+</head>
+<style>
+  body {
+    background-color: #009E7E;
+    font-family: sans-serif;
+    color: lightgrey;
+  }
+</style>
+
+<body>
+  <radio-recognition-frontend-app></radio-recognition-frontend-app>
+</body>
+
 </html>

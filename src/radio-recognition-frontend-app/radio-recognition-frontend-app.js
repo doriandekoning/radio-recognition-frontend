@@ -5,6 +5,9 @@ import '@polymer/paper-styles/paper-styles.js';
 import '@polymer/iron-flex-layout/iron-flex-layout-classes.js';
 import '@polymer/polymer/lib/elements/dom-if.js';
 import '@polymer/app-route/app-route.js';
+import '@polymer/paper-listbox/paper-listbox.js';
+// import '@polymer/paper-dropdown-menu/paper-dropdown-menu.js';
+import '@polymer/paper-item/paper-item.js';
 
 
 /**
@@ -39,9 +42,9 @@ class RadioRecognitionFrontendApp extends PolymerElement {
           text-align: center;
         }
         #information{
-          margin-top: 50px;
-          border-top: solid lightgrey 2px;
-          border-bottom: solid lightgrey 2px;
+          margin-top: 50px; Buddy Holly
+          border-top: solid Buddy Holly
+          border-bottom: so Buddy Holly
           padding: 12px;
         }
 
@@ -57,7 +60,7 @@ class RadioRecognitionFrontendApp extends PolymerElement {
 
 
       <div id="container" class="layout vertical">
-        <img id="radio" src="../../img/icons/radio.svg" class="self-center" on-click="onRadioTap" recording$=[[recording]]></img>
+        <img id="radio" src="/img/radio.svg" class="self-center" on-click="onRadioTap" recording$=[[recording]]></img>
         <div class="smalltext self-center">
           <template is="dom-if" if=[[!recording]]>
             Tap radio to start recording...
@@ -70,7 +73,7 @@ class RadioRecognitionFrontendApp extends PolymerElement {
           <div class="layout horizontal">
             <span>Station:</span>
             <span class="flex"></span>
-            <span>[[currentstation.stationname]] </span>
+            <span>[[_getStationIfDefined(currentstation.stationname)]] </span>
           </div>
           <div class="layout horizontal">
             <span>Song:</span>
@@ -78,9 +81,14 @@ class RadioRecognitionFrontendApp extends PolymerElement {
             <span>[[currentstation.song.name]] - [[currentstation.song.artist]]</span>
           </div>
           <div class="layout horizontal">
-            <span>DJ:</span>
+            <span>Confidence:</span>
             <span class="flex"></span>
-            <span>[[currentstation.dj]]</span>
+            <span>[[_toFixed(currentstation.song.confidence)]]</span>
+          </div>
+          <div class="layout horizontal">
+            <span>Type:</span>
+            <span class="flex"></span>
+            <span>[[_musicOrSpeach(currentstation.classification.music)]]([[_toFixed(currentstation.classification.confidence)]])</span>
           </div>
         </div>
         <span class="flex"></span>
@@ -90,6 +98,13 @@ class RadioRecognitionFrontendApp extends PolymerElement {
         <template is="dom-if" if="[[_and(authorizedSpotify, currentSongURL)]]">
           <paper-button id="openSongInSpotifyButton" class="spotifyButton" on-tap="openSongInSpotify">Open in Spotify</paper-button>
         </template>
+        <paper-dropdown-menu label="Microphone selection">
+        <paper-listbox attr-for-selected="audioid" on-selected-changed="_selectMediaDevice" slot="dropdown-content" class="dropdown-content">
+          <template is="dom-repeat" items="[[audioInputDevices]]">
+            <paper-item audioid="[[item.id]]">[[item.label]]</paper-item>
+          </template>
+        </paper-listbox>
+        </paper-dropdown-menu>
       </div>
       
       
@@ -118,14 +133,25 @@ class RadioRecognitionFrontendApp extends PolymerElement {
       },
       mediaStream: Object,
       mediaRecorder: Object,
+      audioDeviceId: {
+
+      },
+      audioInputDevices: {
+        type: Array,
+        value: []
+      },
+      fragments: {
+        type: Array,
+        value: []
+      }
     };
   }
 
 
   onRadioTap() {
-    if(this.recording){
+    if (this.recording) {
       this._stopAudioRecorder()
-    }else{
+    } else {
       this._initAudioRecorder()
     }
     this.recording = !this.recording;
@@ -162,39 +188,52 @@ class RadioRecognitionFrontendApp extends PolymerElement {
       }
       window.location.hash = ''
     }
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      for (var i = 0; i < devices.length; i++) {
+        if (devices[i].kind === "audioinput") {
+          this.audioInputDevices = this.audioInputDevices.concat({ 'label': devices[i].label, 'id': devices[i].deviceId })
+        }
+      }
+    }).catch(e => console.log("Something went wrong with enumerating the audio devices", e))
   }
 
   _initAudioRecorder() {
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false }, video: false, deviceId: this.audioDeviceId })
       .then(stream => {
         this.mediaStream = stream;
         var options = {
-          audioBitsPerSecond: 128000,
           mimeType: 'audio/webm;codecs=opus'
 
         }
         this.mediaRecorder = new MediaRecorder(stream, options)
-        this.mediaRecorder.start(10000)
-        //Recorder calls data available every 5000ms
+        this.mediaRecorder.start(3000)
+        //Recorder calls data available every 3sec
         this.mediaRecorder.ondataavailable = (e) => {
-            var reader = new FileReader();
-            reader.readAsDataURL(e.data)
-            reader.onloadend = () => this._sendToBackend(reader.result)
-            //Hacky way to record another segment (when not "reset" like this only the first webm blob contains metadata)
-            this._stopAudioRecorder()
-            this._initAudioRecorder()
+          var reader = new FileReader();
+          reader.readAsDataURL(e.data)
+          reader.onloadend = () => {
+            //Remove first splice
+            this.fragments.push(reader.result)
+            if (this.fragments.length > 3) {
+              this.fragments.shift()
+            }
+            this._sendToBackend(this.fragments)
+          }
+          //Hacky way to record another segment (when not "reset" like this only the first webm blob contains metadata)
+          this._stopAudioRecorder()
+          this._initAudioRecorder()
         }
       })
   }
 
-  _stopAudioRecorder(){
+  _stopAudioRecorder() {
     this.mediaStream.getTracks()[0].stop();
   }
 
-  _sendToBackend(base64audio){
-    axios.post(BACKEND_URL + '/analysis', {audio: base64audio})
-    .then((resp) => this.set('currentstation', resp.data))
-    .catch((err) => console.log(err))
+  _sendToBackend(base64audios) {
+    axios.post(BACKEND_URL + '/analysis', { audio: base64audios, timestamp: new Date().toISOString() })
+      .then((resp) => this.set('currentstation', resp.data))
+      .catch((err) => console.log(err))
   }
 
   parseURLparameters(string) {
@@ -242,6 +281,23 @@ class RadioRecognitionFrontendApp extends PolymerElement {
 
   _and(a, b) {
     return a && b;
+  }
+
+  _musicOrSpeach(bool) {
+    return bool ? "Music" : "Speech"
+  }
+
+  _toFixed(fix) {
+    return fix.toFixed(3)
+  }
+
+  _selectMediaDevice(e) {
+    console.log("Iets", e)
+    this.audioDeviceId = e.detail.value
+  }
+
+  _getStationIfDefined(e) {
+    return e || 'Not found'
   }
 
 }
